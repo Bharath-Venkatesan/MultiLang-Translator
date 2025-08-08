@@ -6,7 +6,6 @@ from langdetect import detect
 
 app = FastAPI()
 
-# Enable CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,7 +13,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Map ISO language codes to NLLB language codes
 lang_code_map = {
     "en": "eng_Latn", "fr": "fra_Latn", "hi": "hin_Deva", "es": "spa_Latn", "de": "deu_Latn",
     "ta": "tam_Taml", "zh": "zho_Hans", "ar": "arb_Arab", "ru": "rus_Cyrl", "ja": "jpn_Jpan",
@@ -26,14 +24,13 @@ lang_code_map = {
 class TranslationRequest(BaseModel):
     text: str
     target_langs: list
-    source_lang: str = None  # Optional
+    source_lang: str = None 
 
 # Load NLLB-200 model & tokenizer
-model_name = "facebook/nllb-200-3.3B"  # Or "facebook/nllb-200-distilled-600M" for lighter version
+model_name = "facebook/nllb-200-3.3B"  
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
-# Create manual lang_code_to_id mapping
 lang_code_to_id = {code: tokenizer.convert_tokens_to_ids(code) for code in tokenizer.additional_special_tokens}
 
 def detect_language(text):
@@ -57,7 +54,7 @@ def translate(text, target_lang, source_lang=None):
     inputs = tokenizer(text, return_tensors="pt", padding=True)
     translated_tokens = model.generate(
         **inputs,
-        forced_bos_token_id=lang_code_to_id[tgt_code],  # use manual mapping
+        forced_bos_token_id=lang_code_to_id[tgt_code],  
         max_length=200
     )
     return tokenizer.decode(translated_tokens[0], skip_special_tokens=True)
