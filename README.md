@@ -7,3 +7,5 @@ franc-min
 iso-639-3 
 react-toastify 
 @mui/material @emotion/react @emotion/styled
+
+Model : NLLB-200-3.3B for higher accuracy
