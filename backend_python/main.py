@@ -1,11 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import MBartForConditionalGeneration, MBart50TokenizerFast
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from langdetect import detect
 
 app = FastAPI()
 
+# Enable CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,12 +14,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Map ISO language codes to NLLB language codes
 lang_code_map = {
-    "en": "en_XX", "fr": "fr_XX", "hi": "hi_IN", "es": "es_XX", "de": "de_DE",
-    "ta": "ta_IN", "zh": "zh_CN", "ar": "ar_AR", "ru": "ru_RU", "ja": "ja_XX",
-    "it": "it_IT", "pt": "pt_XX", "pl": "pl_PL", "tr": "tr_TR", "nl": "nl_XX",
-    "sv": "sv_SE", "ko": "ko_KR", "fa": "fa_IR", "fi": "fi_FI", "he": "he_IL",
-    "uk": "uk_UA", "vi": "vi_VN", "cs": "cs_CZ", "ro": "ro_RO"
+    "en": "eng_Latn", "fr": "fra_Latn", "hi": "hin_Deva", "es": "spa_Latn", "de": "deu_Latn",
+    "ta": "tam_Taml", "zh": "zho_Hans", "ar": "arb_Arab", "ru": "rus_Cyrl", "ja": "jpn_Jpan",
+    "it": "ita_Latn", "pt": "por_Latn", "pl": "pol_Latn", "tr": "tur_Latn", "nl": "nld_Latn",
+    "sv": "swe_Latn", "ko": "kor_Hang", "fa": "pes_Arab", "fi": "fin_Latn", "he": "heb_Hebr",
+    "uk": "ukr_Cyrl", "vi": "vie_Latn", "cs": "ces_Latn", "ro": "ron_Latn"
 }
 
 class TranslationRequest(BaseModel):
@@ -26,9 +28,13 @@ class TranslationRequest(BaseModel):
     target_langs: list
     source_lang: str = None  # Optional
 
-model_name = "facebook/mbart-large-50-many-to-many-mmt"
-tokenizer = MBart50TokenizerFast.from_pretrained(model_name)
-model = MBartForConditionalGeneration.from_pretrained(model_name)
+# Load NLLB-200 model & tokenizer
+model_name = "facebook/nllb-200-3.3B"  # Or "facebook/nllb-200-distilled-600M" for lighter version
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+
+# Create manual lang_code_to_id mapping
+lang_code_to_id = {code: tokenizer.convert_tokens_to_ids(code) for code in tokenizer.additional_special_tokens}
 
 def detect_language(text):
     try:
@@ -42,22 +48,19 @@ def translate(text, target_lang, source_lang=None):
         return "Empty input"
 
     source_lang = source_lang or detect_language(text)
-    src_code = lang_code_map.get(source_lang, "en_XX")
+    src_code = lang_code_map.get(source_lang, "eng_Latn")
     tgt_code = lang_code_map.get(target_lang)
 
     if not tgt_code:
         return f"Unsupported target language: {target_lang}"
 
-    tokenizer.src_lang = src_code
-    encoded = tokenizer(text, return_tensors="pt")
-    generated_tokens = model.generate(
-        **encoded,
-        forced_bos_token_id=tokenizer.lang_code_to_id[tgt_code],
-        max_length=60,
-        num_beams=4,
-        early_stopping=True
+    inputs = tokenizer(text, return_tensors="pt", padding=True)
+    translated_tokens = model.generate(
+        **inputs,
+        forced_bos_token_id=lang_code_to_id[tgt_code],  # use manual mapping
+        max_length=200
     )
-    return tokenizer.decode(generated_tokens[0], skip_special_tokens=True)
+    return tokenizer.decode(translated_tokens[0], skip_special_tokens=True)
 
 @app.post("/translate")
 def get_translation(req: TranslationRequest):
