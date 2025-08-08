@@ -26,7 +26,7 @@ class TranslationRequest(BaseModel):
     target_langs: list
     source_lang: str = None 
 
-# Load NLLB-200 model & tokenizer
+# Model : NLLB-200-3.3B
 model_name = "facebook/nllb-200-3.3B"  
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
